@@ -18,14 +18,15 @@ import (
 const (
 	EnvLogLevel = "MEW_LOG_LEVEL"
 
-	EnvRedashBaseURL        = "REDASH_BASE_URL"
-	EnvRedashAPIKey         = "REDASH_API_KEY"
-	EnvRedashHTTPTimeout    = "REDASH_HTTP_TIMEOUT_SECONDS"
-	EnvRedashQueryTimeout   = "REDASH_QUERY_TIMEOUT_SECONDS"
-	EnvRedashMaxRows        = "REDASH_MAX_ROWS"
-	EnvRedashMaxResultChars = "REDASH_MAX_RESULT_CHARS"
-	EnvRedashAdhocAutoLimit = "REDASH_ADHOC_AUTO_LIMIT"
-	EnvRedashDisableAdhoc   = "REDASH_DISABLE_ADHOC"
+	EnvRedashBaseURL           = "REDASH_BASE_URL"
+	EnvRedashAPIKey            = "REDASH_API_KEY"
+	EnvRedashHTTPTimeout       = "REDASH_HTTP_TIMEOUT_SECONDS"
+	EnvRedashQueryTimeout      = "REDASH_QUERY_TIMEOUT_SECONDS"
+	EnvRedashMaxRows           = "REDASH_MAX_ROWS"
+	EnvRedashMaxResultChars    = "REDASH_MAX_RESULT_CHARS"
+	EnvRedashAdhocAutoLimit    = "REDASH_ADHOC_AUTO_LIMIT"
+	EnvRedashDisableAdhoc      = "REDASH_DISABLE_ADHOC"
+	EnvRedashDefaultDataSource = "REDASH_DEFAULT_DATA_SOURCE"
 
 	EnvClickUpAPIToken       = "CLICKUP_API_TOKEN"
 	EnvClickUpTeamID         = "CLICKUP_TEAM_ID"
@@ -98,6 +99,10 @@ type Redash struct {
 	// DisableAdhoc hides the ad-hoc query tool, restricting execution to
 	// saved queries.
 	DisableAdhoc bool
+	// DefaultDataSource is the data source used when a tool call omits
+	// data_source_id. It may be a numeric id or a data source name (resolved
+	// at call time). Empty means callers must always specify one.
+	DefaultDataSource string
 }
 
 // FromEnv reads the configuration, collecting every problem into one error
@@ -179,12 +184,13 @@ func redashFromEnv() (*Redash, error) {
 
 	var errs []error
 	r := &Redash{
-		APIKey:         rawKey,
-		HTTPTimeout:    DefaultRedashHTTPTimeout,
-		QueryTimeout:   DefaultRedashQueryTimeout,
-		MaxRows:        DefaultRedashMaxRows,
-		MaxResultChars: DefaultRedashMaxResultChars,
-		AdhocAutoLimit: DefaultRedashAdhocAutoLimit,
+		APIKey:            rawKey,
+		HTTPTimeout:       DefaultRedashHTTPTimeout,
+		QueryTimeout:      DefaultRedashQueryTimeout,
+		MaxRows:           DefaultRedashMaxRows,
+		MaxResultChars:    DefaultRedashMaxResultChars,
+		AdhocAutoLimit:    DefaultRedashAdhocAutoLimit,
+		DefaultDataSource: strings.TrimSpace(os.Getenv(EnvRedashDefaultDataSource)),
 	}
 
 	if rawURL == "" {

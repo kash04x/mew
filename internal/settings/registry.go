@@ -30,6 +30,7 @@ var Registry = []Setting{
 	// Redash.
 	{Key: "redash.base_url", Env: config.EnvRedashBaseURL, Toolset: "redash", Essential: true, Desc: "Redash root URL (https://redash.example.com)"},
 	{Key: "redash.api_key", Env: config.EnvRedashAPIKey, Toolset: "redash", Secret: true, Essential: true, Desc: "Redash user API key (from your Redash profile page)"},
+	{Key: "redash.default_data_source", Env: config.EnvRedashDefaultDataSource, Toolset: "redash", Essential: true, Desc: "default data source name or id used when a query omits one (e.g. \"SC PROD DB\")"},
 	{Key: "redash.http_timeout_seconds", Env: config.EnvRedashHTTPTimeout, Toolset: "redash", Desc: "per-HTTP-request timeout"},
 	{Key: "redash.query_timeout_seconds", Env: config.EnvRedashQueryTimeout, Toolset: "redash", Desc: "end-to-end budget for one query execution"},
 	{Key: "redash.max_rows", Env: config.EnvRedashMaxRows, Toolset: "redash", Desc: "hard cap on rows returned per call"},

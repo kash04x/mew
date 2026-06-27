@@ -36,14 +36,18 @@ func registerDataSourceTools(s *mcp.Server, d Deps) {
 				mongoCount++
 			}
 		}
-		res, err := jsonResult(map[string]any{
+		out := map[string]any{
 			"status":               "ok",
 			"base_url":             d.Config.BaseURL,
 			"user":                 map[string]string{"name": sess.User.Name, "email": sess.User.Email},
 			"org":                  sess.OrgSlug,
 			"data_sources_visible": len(sources),
 			"mongodb_data_sources": mongoCount,
-		})
+		}
+		if d.Config.DefaultDataSource != "" {
+			out["default_data_source"] = d.Config.DefaultDataSource
+		}
+		res, err := jsonResult(out)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -64,6 +68,7 @@ func registerDataSourceTools(s *mcp.Server, d Deps) {
 			Name        string `json:"name"`
 			Type        string `json:"type"`
 			IsMongoDB   bool   `json:"is_mongodb"`
+			IsDefault   bool   `json:"is_default,omitempty"`
 			Paused      bool   `json:"paused,omitempty"`
 			PauseReason string `json:"pause_reason,omitempty"`
 			ViewOnly    bool   `json:"view_only,omitempty"`
@@ -75,6 +80,7 @@ func registerDataSourceTools(s *mcp.Server, d Deps) {
 				Name:        ds.Name,
 				Type:        ds.Type,
 				IsMongoDB:   isMongo(ds),
+				IsDefault:   isDefaultSource(ds, d.Config.DefaultDataSource),
 				Paused:      bool(ds.Paused),
 				PauseReason: ds.PauseReason,
 				ViewOnly:    ds.ViewOnly,
@@ -89,7 +95,7 @@ func registerDataSourceTools(s *mcp.Server, d Deps) {
 
 	mcp.AddTool(s, &mcp.Tool{
 		Name:        "redash_get_schema",
-		Description: "Get the cached schema of a data source: its collections and the field names Redash has observed (dotted paths for nested documents). Use search to find specific collections. The schema is a sampled cache and may lag reality.",
+		Description: "Get the cached schema of a data source: its collections and the field names Redash has observed (dotted paths for nested documents). Use search to find specific collections. The schema is a sampled cache and may lag reality; if a collection returns no fields (Mongo schema caching is often disabled), use redash_sample_documents to read real documents instead.",
 		Annotations: readOnly("Get data source schema"),
 	}, func(ctx context.Context, _ *mcp.CallToolRequest, args getSchemaArgs) (*mcp.CallToolResult, any, error) {
 		tables, err := d.Client.Schema(ctx, args.DataSourceID)

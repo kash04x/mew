@@ -31,9 +31,12 @@ const Instructions = `## Redash (production MongoDB)
 Tools prefixed redash_ work against the company Redash instance, whose data
 sources are production MongoDB databases queried with Redash's JSON syntax.
 Typical flows:
-- Explore data: redash_list_data_sources -> redash_get_schema -> redash_execute_adhoc_query.
+- Explore data: redash_list_data_sources -> redash_get_schema (or redash_sample_documents) -> redash_execute_adhoc_query.
 - Reuse vetted queries: redash_list_queries -> redash_get_query (note required parameters) -> redash_execute_query.
 - Dashboards: redash_list_dashboards -> redash_get_dashboard -> run the widgets' queries by id.
+Field names are not standardized in MongoDB. Before filtering or projecting on a
+field you have not already seen, confirm its exact name with redash_sample_documents
+or redash_get_schema — a guessed name returns zero rows silently rather than erroring.
 Results are truncated to row and character budgets; notes in each payload say when.
 This is production data: filter narrowly, project only needed fields, and
 prefer aggregations over pulling raw documents.`

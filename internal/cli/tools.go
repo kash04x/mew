@@ -39,6 +39,7 @@ var toolCatalog = map[string][]toolInfo{
 		{"redash_test_connection", "read", "Verify URL/key; show user and visible data sources"},
 		{"redash_list_data_sources", "read", "List data sources; flags MongoDB ones"},
 		{"redash_get_schema", "read", "Collections + observed fields of a data source"},
+		{"redash_sample_documents", "read", "Sample real documents to see exact field names"},
 		{"redash_list_queries", "read", "Search saved queries"},
 		{"redash_get_query", "read", "Full query text + declared parameters"},
 		{"redash_get_cached_result", "read", "Latest cached result, zero database load"},

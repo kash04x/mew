@@ -13,6 +13,10 @@ import (
 	"mew/internal/redash/mongoguard"
 )
 
+// adhocFieldWarning is placed at the point of use — the execute tool's own
+// description — because that is where the model decides what to query.
+const adhocFieldWarning = `Before filtering, grouping, projecting, or sorting on any field you have not already seen in this conversation, confirm the exact field name first with redash_sample_documents (or redash_get_schema). MongoDB field names are not standardized — phone_number vs phoneNumber vs a nested contact.phone — and a wrong name returns zero rows silently instead of erroring, so a guess can look like "no data".`
+
 const mongoQueryGuide = `The query must be one JSON object in Redash's Mongo syntax (strict JSON: no JavaScript, comments, or unquoted keys).
 
 Find documents:
@@ -44,7 +48,7 @@ type executeQueryArgs struct {
 }
 
 type executeAdhocArgs struct {
-	DataSourceID int    `json:"data_source_id" jsonschema:"ID of the MongoDB data source to query, from redash_list_data_sources"`
+	DataSourceID int    `json:"data_source_id,omitempty" jsonschema:"ID of the MongoDB data source to query, from redash_list_data_sources. Omit to use the configured default data source."`
 	Query        string `json:"query" jsonschema:"The Redash Mongo query as one JSON object string (see tool description for the format)"`
 	MaxRows      int    `json:"max_rows,omitempty" jsonschema:"Maximum rows to return (default 100, capped by server config)"`
 	MaxAge       *int   `json:"max_age,omitempty" jsonschema:"Freshness in seconds: 0 (default) executes fresh; -1 accepts any cached result for identical query text"`
@@ -79,10 +83,14 @@ func registerExecuteTools(s *mcp.Server, d Deps) {
 	} else {
 		mcp.AddTool(s, &mcp.Tool{
 			Name:        "redash_execute_adhoc_query",
-			Description: "Run a new ad-hoc read query against a MongoDB data source through Redash and wait for its rows.\n\n" + mongoQueryGuide,
+			Description: "Run a new ad-hoc read query against a MongoDB data source through Redash and wait for its rows." + defaultDataSourceHint(d.Config.DefaultDataSource) + "\n\n" + adhocFieldWarning + "\n\n" + mongoQueryGuide,
 			Annotations: executeAnnotations("Execute ad-hoc Mongo query"),
 		}, func(ctx context.Context, _ *mcp.CallToolRequest, args executeAdhocArgs) (*mcp.CallToolResult, any, error) {
 			prepared, err := mongoguard.Prepare(args.Query, d.Config.AdhocAutoLimit)
+			if err != nil {
+				return nil, nil, err
+			}
+			dsID, err := resolveDataSourceID(ctx, d, args.DataSourceID)
 			if err != nil {
 				return nil, nil, err
 			}
@@ -94,9 +102,12 @@ func registerExecuteTools(s *mcp.Server, d Deps) {
 			}
 			runCtx, cancel := context.WithTimeout(ctx, d.Config.QueryTimeout)
 			defer cancel()
-			qr, err := d.Client.RunAdhoc(runCtx, args.DataSourceID, prepared.Query, maxAge(args.MaxAge), d.Poll)
+			qr, err := d.Client.RunAdhoc(runCtx, dsID, prepared.Query, maxAge(args.MaxAge), d.Poll)
 			if err != nil {
 				return nil, nil, userErr(err)
+			}
+			if len(qr.Data.Rows) == 0 {
+				notes = append(notes, "Query returned 0 rows. If you filtered, grouped, or projected on field names you assumed rather than verified, that is the most likely cause — confirm the real field names with redash_sample_documents (MongoDB field names vary, and a wrong name matches nothing). If an empty result is genuinely expected, ignore this.")
 			}
 			text, err := format.QueryResult(qr, limitsFor(d.Config, args.MaxRows), notes...)
 			if err != nil {
@@ -104,6 +115,8 @@ func registerExecuteTools(s *mcp.Server, d Deps) {
 			}
 			return textResult(text), nil, nil
 		})
+
+		registerSampleDocumentsTool(s, d)
 	}
 
 	mcp.AddTool(s, &mcp.Tool{

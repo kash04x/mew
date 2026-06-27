@@ -16,7 +16,7 @@ func clearEnv(t *testing.T) {
 		EnvRedashBaseURL, EnvRedashAPIKey,
 		EnvRedashHTTPTimeout, EnvRedashQueryTimeout,
 		EnvRedashMaxRows, EnvRedashMaxResultChars,
-		EnvRedashAdhocAutoLimit, EnvRedashDisableAdhoc,
+		EnvRedashAdhocAutoLimit, EnvRedashDisableAdhoc, EnvRedashDefaultDataSource,
 		EnvClickUpAPIToken, EnvClickUpTeamID,
 		EnvClickUpHTTPTimeout, EnvClickUpMaxResultChars, EnvClickUpEnableWrites,
 	} {
