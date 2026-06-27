@@ -2,10 +2,13 @@ package cli
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"time"
@@ -58,7 +61,7 @@ func runUpdate(cmd *cobra.Command, _ []string) error {
 	}
 
 	fmt.Fprintf(out, "Downloading %s...\n", latest)
-	if err := downloadAndReplace(downloadURL, self); err != nil {
+	if err := downloadAndReplace(out, downloadURL, self); err != nil {
 		return fmt.Errorf("update failed: %w", err)
 	}
 
@@ -101,7 +104,7 @@ func fetchLatestRelease() (version, downloadURL string, err error) {
 	return rel.TagName, "", nil
 }
 
-func downloadAndReplace(url, dest string) error {
+func downloadAndReplace(out io.Writer, url, dest string) error {
 	client := &http.Client{Timeout: 5 * time.Minute}
 	resp, err := client.Get(url) //nolint:noctx
 	if err != nil {
@@ -113,15 +116,23 @@ func downloadAndReplace(url, dest string) error {
 		return fmt.Errorf("download returned %s", resp.Status)
 	}
 
-	// Write to a temp file in the destination directory so the rename is
-	// atomic and stays on the same filesystem.
+	// Prefer a temp file beside the destination so the swap is an atomic,
+	// same-filesystem rename (also the safe way to replace a running binary).
+	// If the destination directory is not writable — the usual case for a
+	// root-owned /usr/local/bin — stage the download in the system temp dir
+	// and install the final binary through sudo instead.
 	dir := filepath.Dir(dest)
+	elevate := false
 	tmp, err := os.CreateTemp(dir, ".mew-update-*")
+	if errors.Is(err, fs.ErrPermission) {
+		elevate = true
+		tmp, err = os.CreateTemp("", ".mew-update-*")
+	}
 	if err != nil {
 		return err
 	}
 	tmpPath := tmp.Name()
-	defer os.Remove(tmpPath) // no-op once renamed
+	defer os.Remove(tmpPath) // no-op once moved into place
 
 	if _, err := io.Copy(tmp, resp.Body); err != nil {
 		tmp.Close()
@@ -133,5 +144,30 @@ func downloadAndReplace(url, dest string) error {
 	if err := os.Chmod(tmpPath, 0o755); err != nil {
 		return err
 	}
+
+	if elevate {
+		return sudoInstall(out, tmpPath, dest)
+	}
 	return os.Rename(tmpPath, dest)
+}
+
+// sudoInstall places src at dest with elevated privileges, prompting for the
+// password on the terminal. Only the final install step runs as root — the
+// download already happened as the current user.
+func sudoInstall(out io.Writer, src, dest string) error {
+	sudo, err := exec.LookPath("sudo")
+	if err != nil {
+		return fmt.Errorf("writing %s needs elevated permissions, but sudo was not found; re-run as root (sudo mew update) or install mew somewhere writable", dest)
+	}
+	fmt.Fprintf(out, "Writing to %s needs elevated permissions — you may be prompted for your password.\n", filepath.Dir(dest))
+
+	cmd := exec.Command(sudo, "install", "-m", "0755", src, dest)
+	// Wire the real terminal so sudo can read the password and show its prompt.
+	cmd.Stdin = os.Stdin
+	cmd.Stdout = out
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("sudo install failed: %w", err)
+	}
+	return nil
 }

@@ -96,9 +96,10 @@ mew update
 ```
 
 Checks GitHub for the latest release and replaces your binary in place — no need
-to re-run the install script. To ship an update to everyone, push a `vX.Y.Z` tag;
-the release workflow builds and publishes the binaries, and each user picks it up
-with `mew update`.
+to re-run the install script. If mew lives in a root-owned directory (the default
+`/usr/local/bin`), it prompts for your password to write the new binary. To ship
+an update to everyone, push a `vX.Y.Z` tag; the release workflow builds and
+publishes the binaries, and each user picks it up with `mew update`.
 
 ---
 
